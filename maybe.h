@@ -170,12 +170,12 @@ public:
 	template <class U, class ...Args>
 	maybe_op_ref<T, U, Args...> operator[](maybe<U>(*)(T&, Args...));
     //only eneable if its a class type
-    template <class U, class ...Args> typename
-    enable_if<is_class<T>::value, maybe_op_mem<T, U, Args...>>
-    ::type operator[](maybe<U>(T::*)(Args...));
-    template <class U, class ...Args> typename
-    enable_if<is_class<T>::value, maybe_op_mem_const<T, U, Args...>>
-    ::type operator[](maybe<U>(T::*)(Args...) const) const;
+    template <class U, class ...Args, class Self = T> typename
+    enable_if<is_class<Self>::value, maybe_op_mem<Self, U, Args...>>
+    ::type operator[](maybe<U>(Self::*)(Args...));
+    template <class U, class ...Args, class Self = T> typename
+    enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U, Args...>>
+    ::type operator[](maybe<U>(Self::*)(Args...) const) const;
 	T& get() {
 		return obj;
 	}
@@ -267,17 +267,17 @@ maybe_op_ref<T, U, Args...> maybe<T>::operator[](maybe<U>(*func)(T&, Args...)) {
 }
 
 template <class T>
-template <class U, class ...Args>
-typename enable_if<is_class<T>::value, maybe_op_mem<T, U, Args...>>
-::type maybe<T>::operator[](maybe<U>(T::*func)(Args...)) {
-    return maybe_op_mem<T, U, Args...>(*this, valid ? func : nullptr);
+template <class U, class ...Args, class Self>
+typename enable_if<is_class<Self>::value, maybe_op_mem<Self, U, Args...>>
+::type maybe<T>::operator[](maybe<U>(Self::*func)(Args...)) {
+    return maybe_op_mem<Self, U, Args...>(*this, valid ? func : nullptr);
 }
 
 template <class T>
-template <class U, class ...Args>
-typename enable_if<is_class<T>::value, maybe_op_mem_const<T, U, Args...>>
-::type maybe<T>::operator[](maybe<U>(T::*func)(Args...) const) const {
-    return maybe_op_mem_const<T, U, Args...>(*this, valid ? func : nullptr);
+template <class U, class ...Args, class Self>
+typename enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U, Args...>>
+::type maybe<T>::operator[](maybe<U>(Self::*func)(Args...) const) const {
+    return maybe_op_mem_const<Self, U, Args...>(*this, valid ? func : nullptr);
 }
 
 #endif
