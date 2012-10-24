@@ -1,8 +1,8 @@
 #include <iostream>
 #include "maybe.h"
 
-maybe<int> foo(maybe<int> bar) {
-	return -bar.get();
+maybe<int> foo(int bar) {
+	return -bar;
 }
 
 int main() {
