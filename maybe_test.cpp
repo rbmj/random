@@ -1,6 +1,8 @@
 #include <iostream>
 #include "maybe.h"
 
+using namespace metaprog;
+
 maybe<int> foo(int bar) {
 	return -bar;
 }

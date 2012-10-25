@@ -1,31 +1,9 @@
 #ifndef MAYBE_H_INC
 #define MAYBE_H_INC
 
-//for SFINAE
+#include "metaprogramming.h"
 
-template <class T>
-struct is_class {
-public:
-    typedef long class_t;
-    typedef char not_class_t;
-    //need a double layer of templates in order to
-    //use SFINAE to prevent compiler errors
-    template <class U>
-    static class_t test(int U::*);
-    template <class U>
-    static not_class_t test(...);
-    enum { 
-        value = (sizeof(is_class<T>::template test<T>(0)) == sizeof(class_t))
-    };
-};
-
-template <bool Enable, class T = void>
-struct enable_if {};
-
-template <class T>
-struct enable_if<true, T> {
-    typedef T type;
-};
+namespace metaprog {
 
 //forward declaration
 template <class T>
@@ -442,6 +420,8 @@ template <class U, class ...Args, class Self>
 typename enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U, Args...>>
 ::type maybe<T>::operator[](maybe<U>(Self::*func)(Args...) const) const {
     return maybe_op_mem_const<Self, U, Args...>(*this, valid ? func : nullptr);
+}
+
 }
 
 #endif
