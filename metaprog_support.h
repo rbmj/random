@@ -4,23 +4,20 @@
 #ifndef NO_STDLIB
 #include <type_traits>
 #include <utility>
+#include <functional>
 
 namespace metaprog {
 	
 	template <class T>
 	using aligned_memory = std::aligned_storage<sizeof(T), alignof(T)>;
 	
-	template <class T>
-	using forward = std::forward<T>;
+	using std::forward;
 	
-	template <class T>
-	using move = std::move<T>;
+	using std::move;
+
+	using std::is_class;
 	
-	template <class T>
-	using is_class = std::is_class<T>;
-	
-	template <bool B, class T = void>
-	using enable_if = std::enable_if<B, T>;
+	using std::enable_if;
 	
 }
 
@@ -103,3 +100,6 @@ namespace metaprog {
 }
 
 #endif
+
+#endif
+

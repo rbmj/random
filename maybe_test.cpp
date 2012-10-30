@@ -50,9 +50,9 @@ int main() {
 	maybe<test> six = y[test_constref]();
 	maybe<test> seven = y[&test::zero]();
 	maybe<test> eight = y[&test::add](2);
-	maybe<int> nine = x[[](int a) { return maybe<int>(-a); }]();
-	maybe<int> ten = x[[](int& a) { return maybe<int>(a = 0); }]();
-	maybe<int> eleven = x[[](const int& a) { return maybe<int>(x+5); }]();
+	maybe<int> nine = x[ [](int a) { return maybe<int>(-a); }]();
+	//maybe<int> ten = x[[](int& a) -> maybe<int> { return maybe<int>(a = 0); }]();
+	//maybe<int> eleven = x[[](const int& a) -> maybe<int> { return maybe<int>(a+5); }]();
 	std::cout << one.get() << std::endl;
 	std::cout << two.get() << std::endl;
 	std::cout << three.get() << std::endl;
@@ -62,8 +62,8 @@ int main() {
 	std::cout << seven.get().value << std::endl;
 	std::cout << eight.get().value << std::endl;
 	std::cout << nine.get() << std::endl;
-	std::cout << ten.get() << std::endl;
-	std::cout << eleven.get() << std::endl;
+	//std::cout << ten.get() << std::endl;
+	//std::cout << eleven.get() << std::endl;
 	return 0;
 }
 

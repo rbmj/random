@@ -118,7 +118,7 @@ public:
 	typedef std::function<maybe<U>(const T&, Args...)> pfunc_type;
 	maybe<U> operator()(Args&&... args);
 private:
-	maybe_op_fun(const maybe<T>&, pfunc_type f);
+	maybe_op_fun_constref(const maybe<T>&, pfunc_type f);
 	const maybe<T>& t;
 	pfunc_type f;
 };
@@ -131,7 +131,7 @@ public:
 	typedef std::function<maybe<U>(T&, Args...)> pfunc_type;
 	maybe<U> operator()(Args&&... args);
 private:
-	maybe_op_fun(maybe<T>&, pfunc_type f);
+	maybe_op_fun_ref(maybe<T>&, pfunc_type f);
 	maybe<T>& t;
 	pfunc_type f;
 };
@@ -215,7 +215,7 @@ private:
     //allocate space to make value semantics easy without smart pointers
     //we use a memory buffer instead of an object so we can defer
     //construction of the object.
-	aligned_memory<T>::type memory;
+	typename aligned_memory<T>::type memory;
 	bool valid;
 	//do the actual construction
 	template <class ...Args>
@@ -454,12 +454,12 @@ void maybe<T>::invalidate() {
 //TODO: Throw an exception	
 template <class T>
 T& maybe<T>::get() {
-	return *(reinterpret_cast<T*>(&(memory[0])));
+	return *(reinterpret_cast<T*>(&memory));
 }
 
 template <class T>
 const T& maybe<T>::get() const {
-	return *(reinterpret_cast<const T*>(&(memory[0])));
+	return *(reinterpret_cast<const T*>(&memory));
 }
 
 template <class T>
@@ -469,7 +469,7 @@ void maybe<T>::construct(Args&&... args) {
 		//don't want to double-construct
 		invalidate();
 	}
-	new(reinterpret_cast<void*>(&(memory[0]))) T(std::forward<Args>(args)...);
+	new(reinterpret_cast<void*>(&memory)) T(std::forward<Args>(args)...);
 	valid = true;
 }
 
