@@ -4,7 +4,6 @@
 #ifndef NO_STDLIB
 #include <type_traits>
 #include <utility>
-#include <functional>
 
 namespace metaprog {
 	
@@ -23,20 +22,9 @@ namespace metaprog {
 
 #else
 
-//might still have stdint...
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-
-namespace metaprog {
-	typedef byte uint_least8_t;
-
-#else 
-
 namespace metaprog {
 	typedef byte unsigned char; //fallback should work most of the time
 	
-#endif
-
 	//we can't use the standard library...
 	
 	template <class T>
@@ -93,8 +81,8 @@ namespace metaprog {
     };
 
 	template <class T>
-	typename std::remove_reference<T>::type&& move(T&& t) {
-		return static_cast<typename std::remove_reference<T>::type&&>(t);
+	typename remove_reference<T>::type&& move(T&& t) {
+		return static_cast<typename remove_reference<T>::type&&>(t);
 	}
 
 }
