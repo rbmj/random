@@ -1,7 +1,7 @@
 #ifndef MAYBE_H_INC
 #define MAYBE_H_INC
 
-#include "metaprogramming.h"
+#include "metaprog_support.h"
 
 namespace metaprog {
 
@@ -9,134 +9,75 @@ namespace metaprog {
 template <class T>
 class maybe;
 
+template <class T>
+struct add_maybe {
+	typedef maybe<T> type;
+};
+
+template <class T>
+struct add_maybe<maybe<T>> {
+	typedef maybe<T> type;
+};
+
 //maybe_op* are function-objects that are returned when a
 //function is applied to a maybe monad object, which allows
-//a more natural syntax.  I've chosen to implement multiple
-//classes in order to make it easier to provide type-safety.
+//a more natural syntax.
 
-//note that these use function pointers, as one of the goals
-//of this implementation is to be portable and efficient on
-//embedded systems and I'm not sure if just casting everything
-//to std::function is the optimal solution on all platforms.
-//also, this should allow the compiler to optimize the whole
-//type out and replace it with function calls and chained
-//null checks.
-
-//the function pointer is nullptr if the maybe is Nothing,
-//as f(Nothing) = Nothing
-
-//for a function that takes a T 
-template <class T, class U, class ...Args>
+//for a generic callable
+template <class T, class Callable>
 class maybe_op {
 	friend class maybe<T>;
-public:
-    typedef maybe<U> result_type;
-    typedef maybe<U>(*pfunc_type)(T, Args...);
-	maybe<U> operator()(Args&&... args);
 private:
-	maybe_op(const maybe<T>&, pfunc_type);
-	const maybe<T>& t;
-	pfunc_type f;
-};
-
-//for a function that takes a const T&
-template <class T, class U, class ...Args>
-class maybe_op_constref {
-	friend class maybe<T>;
-public:
-    typedef maybe<U> result_type;
-    typedef maybe<U>(*pfunc_type)(const T&, Args...);
-	maybe<U> operator()(Args&&... args);
-private:
-	maybe_op_constref(const maybe<T>&, pfunc_type);
-	const maybe<T>& t;
-	pfunc_type f;
-};
-
-//for a function that takes a T&
-template <class T, class U, class ...Args>
-class maybe_op_ref {
-	friend class maybe<T>;
-public:
-    typedef maybe<U> result_type;
-    typedef maybe<U>(*pfunc_type)(T&, Args...);
-	maybe<U> operator()(Args&&... args);
-private:
-	maybe_op_ref(maybe<T>&, pfunc_type);
+	maybe_op(maybe<T>&, Callable);
+	maybe_op(maybe<T>&);
 	maybe<T>& t;
-	pfunc_type f;
+	Callable call;
+public:
+    typedef typename add_maybe<decltype(call(t.get()))>::type result_type;
+	result_type operator()();
+};
+
+//and for const-correctness
+template <class T, class Callable>
+class maybe_op_const {
+	friend class maybe<T>;
+private:
+	maybe_op_const(const maybe<T>&, Callable);
+	maybe_op_const(const maybe<T>&);
+	const maybe<T>& t;
+	Callable call;
+public:
+	typedef typename add_maybe<decltype(call(t.get()))>::type result_type;
+	result_type operator()();
 };
 
 //for a member function of T
-template <class T, class U, class ...Args>
+template <class T, class U>
 class maybe_op_mem {
     friend class maybe<T>;
 public:
-    typedef maybe<U> result_type;
-    typedef maybe<U>(T::*pfunc_type)(Args...);
-    maybe<U> operator()(Args&&... args);
+	typedef typename add_maybe<U>::type result_type;
+    typedef U(T::*pfunc_type)();
+    result_type operator()();
 private:
-    maybe_op_mem(maybe<T>&, pfunc_type f);
+    maybe_op_mem(maybe<T>&, pfunc_type);
     maybe<T>& t;
     pfunc_type f;
 };
 
 //for a const member function of T
-template <class T, class U, class ...Args>
+template <class T, class U>
 class maybe_op_mem_const {
     friend class maybe<T>;
 public:
-    typedef maybe<U> result_type;
-    typedef maybe<U>(T::*pfunc_type)(Args...) const;
-    maybe<U> operator()(Args&&... args);
+    typedef typename add_maybe<U>::type result_type;
+    typedef U(T::*pfunc_type)() const;
+    result_type operator()();
 private:
-    maybe_op_mem_const(const maybe<T>&, pfunc_type f);
+    maybe_op_mem_const(const maybe<T>&, pfunc_type);
     const maybe<T>& t;
     pfunc_type f;
 };
-
-#ifndef NO_STDLIB
-
-template <class T, class U, class ...Args>
-class maybe_op_fun {
-	friend class maybe<T>;
-public:
-	typedef maybe<U> result_type;
-	typedef std::function<maybe<U>(T, Args...)> pfunc_type;
-	maybe<U> operator()(Args&&... args);
-private:
-	maybe_op_fun(const maybe<T>&, pfunc_type f);
-	const maybe<T>& t;
-	pfunc_type f;
-};
-
-template <class T, class U, class ...Args>
-class maybe_op_fun_constref {
-	friend class maybe<T>;
-public:
-	typedef maybe<U> result_type;
-	typedef std::function<maybe<U>(const T&, Args...)> pfunc_type;
-	maybe<U> operator()(Args&&... args);
-private:
-	maybe_op_fun_constref(const maybe<T>&, pfunc_type f);
-	const maybe<T>& t;
-	pfunc_type f;
-};
-
-template <class T, class U, class ...Args>
-class maybe_op_fun_ref {
-	friend class maybe<T>;
-public:
-	typedef maybe<U> result_type;
-	typedef std::function<maybe<U>(T&, Args...)> pfunc_type;
-	maybe<U> operator()(Args&&... args);
-private:
-	maybe_op_fun_ref(maybe<T>&, pfunc_type f);
-	maybe<T>& t;
-	pfunc_type f;
-};
-
-#endif
 
 //maybe<T>: The maybe monad class
 template <class T>
@@ -154,12 +95,12 @@ public:
 	maybe(U&&);
 	//static constructors
 	template <class ...Args>
-	static maybe<T> Just(Args&&...);
-	static maybe<T> Just(const T&);
-	static maybe<T> Just(T&&);
-	static maybe<T> Nothing();
+	static maybe<T> just(Args&&...);
+	static maybe<T> just(const T&);
+	static maybe<T> just(T&&);
+	static maybe<T> nothing();
 	//allow if(maybe) checking...
-	operator bool();
+	operator bool() const;
 	//assignment operators
 	template <class U>
 	maybe<T>& operator=(const U&);
@@ -169,54 +110,44 @@ public:
 	maybe<T>& operator=(const maybe<U>&);
 	template <class U>
 	maybe<T>& operator=(maybe<U>&&);
-	
+
 	//apply function to monad: operator[]
-	
+
     //cannot use the typedefs for the function pointers below as
     //otherwise the compiler doesn't know what template to
     //instantiate in order to deduce the argument type.  Since
     //we want to use template argument deduction, we have to hard-code
     //the funciton pointer types
-	template <class U, class ...Args>
-	maybe_op<T, U, Args...> operator[](maybe<U>(*)(T, Args...)) const;
-	template <class U, class ...Args>
-	maybe_op_constref<T, U, Args...> operator[](maybe<U>(*)(const T&, Args...)) const;
-	template <class U, class ...Args>
-	maybe_op_ref<T, U, Args...> operator[](maybe<U>(*)(T&, Args...));
-#ifndef NO_STDLIB
-	//prototypes for std::function
-	template <class U, class ...Args>
-	maybe_op_fun<T, U, Args...> operator[](std::function<maybe<U>(T, Args...)>) const;
-	template <class U, class ...Args>
-	maybe_op_fun_ref<T, U, Args...> operator[](std::function<maybe<U>(T&, Args...)>);
-	template <class U, class ...Args>
-	maybe_op_fun_constref<T, U, Args...> operator[](std::function<maybe<U>(const T&, Args...)>) const;
-#endif
+	template <class Callable>
+	maybe_op<T, Callable> operator[](Callable);
+	template <class Callable>
+	maybe_op_const<T, Callable> operator[](Callable) const;
     //only enable if its a class type
     //note: we need the Self = T argument in order for SFINAE to work,
     //otherwise maybe<U>(Self::*)(Args...) is not dependent on the
     //template function and will get looked up anyway without SFINAE,
     //which causes an error on types like maybe<int>
-    template <class U, class ...Args, class Self = T> typename
-    enable_if<is_class<Self>::value, maybe_op_mem<Self, U, Args...>>
-    ::type operator[](maybe<U>(Self::*)(Args...));
+    template <class U, class Self = T> typename
+    enable_if<is_class<Self>::value, maybe_op_mem<Self, U>>
+    ::type operator[](U(Self::*)());
     
-    template <class U, class ...Args, class Self = T> typename
-    enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U, Args...>>
-    ::type operator[](maybe<U>(Self::*)(Args...) const) const;
+    template <class U, class Self = T> typename
+    enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U>>
+    ::type operator[](U(Self::*)() const) const;
     
     //get underlying object: TODO: Conditionally (at compile time)
     //throw an exception.
 	T& get();
     const T& get() const;
     void invalidate();
+	bool valid() const;
     ~maybe();
 private:
     //allocate space to make value semantics easy without smart pointers
     //we use a memory buffer instead of an object so we can defer
     //construction of the object.
 	typename aligned_memory<T>::type memory;
-	bool valid;
+	bool is_valid;
 	//do the actual construction
 	template <class ...Args>
 	void construct(Args&&...);
@@ -229,105 +160,52 @@ private:
 //		if null, just return Nothing
 //		else, return f(Args...)
 
-template <class T, class U, class ...Args>
-maybe_op<T, U, Args...>::maybe_op(const maybe<T>& m, pfunc_type func)
-	: t(m), f(func)
+template <class T, class Callable>
+maybe_op<T, Callable>::maybe_op(maybe<T>& m, Callable c)
+	: t(m), call(c) {
+	//
+}
+
+template <class T, class Callable>
+typename maybe_op<T, Callable>::result_type maybe_op<T, Callable>::operator()() {
+	return t.valid() ? call(t.get()) : result_type::nothing();
+}
+
+template <class T, class Callable>
+maybe_op_const<T, Callable>::maybe_op_const(const maybe<T>& m, Callable c)
+	: t(m), call(c)
 {
 	//
 }
 
-template <class T, class U, class ...Args>
-maybe<U> maybe_op<T, U, Args...>::operator()(Args&&... args) {
-	return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
+template <class T, class Callable>
+typename maybe_op_const<T, Callable>::result_type maybe_op_const<T, Callable>::operator()() {
+	return t.valid() ? call(t.get()) : result_type::nothing();
 }
 
-template <class T, class U, class ...Args>
-maybe_op_constref<T, U, Args...>::maybe_op_constref(const maybe<T>& m, pfunc_type func)
-	: t(m), f(func)
-{
-	//
-}
-
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_constref<T, U, Args...>::operator()(Args&&... args) {
-	return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
-}
-
-template <class T, class U, class ...Args>
-maybe_op_ref<T, U, Args...>::maybe_op_ref(maybe<T>& m, pfunc_type func)
-	: t(m), f(func)
-{
-	//
-}
-
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_ref<T, U, Args...>::operator()(Args&&... args) {
-	return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
-}
-
-template <class T, class U, class ...Args>
-maybe_op_mem<T, U, Args...>::maybe_op_mem(maybe<T>& m, pfunc_type func)
+template <class T, class U>
+maybe_op_mem<T, U>::maybe_op_mem(maybe<T>& m, pfunc_type func)
     : t(m), f(func)
 {
     //
 }
 
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_mem<T, U, Args...>::operator()(Args&&... args) {
-    return f ? ((t.get()).*(f))(std::forward<Args>(args)...) : maybe<U>();
+template <class T, class U>
+typename maybe_op_mem<T, U>::result_type maybe_op_mem<T, U>::operator()() {
+    return t.valid() ? ((t.get()).*(f))() : result_type::nothing();
 }
 
-template <class T, class U, class ...Args>
-maybe_op_mem_const<T, U, Args...>::maybe_op_mem_const(const maybe<T>& m, pfunc_type func)
+template <class T, class U>
+maybe_op_mem_const<T, U>::maybe_op_mem_const(const maybe<T>& m, pfunc_type func)
     : t(m), f(func)
 {
     //
 }
 
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_mem_const<T, U, Args...>::operator()(Args&&... args) {
-    return f ? ((t.get()).*(f))(std::forward<Args>(args)...) : maybe<U>();
+template <class T, class U>
+typename maybe_op_mem_const<T, U>::result_type maybe_op_mem_const<T, U>::operator()() {
+    return t.valid() ? ((t.get()).*(f))() : result_type::nothing();
 }
-
-#ifndef NO_STDLIB
-
-template <class T, class U, class ...Args>
-maybe_op_fun<T, U, Args...>::maybe_op_fun(const maybe<T>& m, pfunc_type func)
-    : t(m), f(func)
-{
-    //
-}
-
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_fun<T, U, Args...>::operator()(Args&&... args) {
-    return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
-}
-
-template <class T, class U, class ...Args>
-maybe_op_fun_constref<T, U, Args...>::maybe_op_fun_constref(const maybe<T>& m, pfunc_type func)
-    : t(m), f(func)
-{
-    //
-}
-
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_fun_constref<T, U, Args...>::operator()(Args&&... args) {
-    return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
-}
-
-template <class T, class U, class ...Args>
-maybe_op_fun_ref<T, U, Args...>::maybe_op_fun_ref(maybe<T>& m, pfunc_type func)
-    : t(m), f(func)
-{
-    //
-}
-
-template <class T, class U, class ...Args>
-maybe<U> maybe_op_fun_ref<T, U, Args...>::operator()(Args&&... args) {
-    return f ? f(t.get(), std::forward<Args>(args)...) : maybe<U>();
-}
-
-#endif
 
 //now for the actual maybe class:
 
@@ -343,13 +221,13 @@ maybe<U> maybe_op_fun_ref<T, U, Args...>::operator()(Args&&... args) {
 //should this produce a valid or invalid object?
 //my guess is invalid would be more intuitive, but I don't know...
 template <class T>
-maybe<T>::maybe() : valid(false) {
+maybe<T>::maybe() : is_valid(false) {
 	//
 }
 
 template <class T>
 template <class U>
-maybe<T>::maybe(const maybe<U>& m) : valid(false) {
+maybe<T>::maybe(const maybe<U>& m) : is_valid(false) {
 	if (m) {
 		construct(m.get());
 	}
@@ -357,21 +235,21 @@ maybe<T>::maybe(const maybe<U>& m) : valid(false) {
 
 template <class T>
 template <class U>
-maybe<T>::maybe(maybe<U>&& m) : valid(false) {
+maybe<T>::maybe(maybe<U>&& m) : is_valid(false) {
 	if (m) {
-		construct(std::move(m.get()));
+		construct(move(m.get()));
 	}
 }
 
 template <class T>
 template <class U>
-maybe<T>::maybe(const U& u) : valid(false) {
+maybe<T>::maybe(const U& u) : is_valid(false) {
 	construct(u);
 }
 
 template <class T>
 template <class U>
-maybe<T>::maybe(U&& u) : valid(false) {
+maybe<T>::maybe(U&& u) : is_valid(false) {
 	construct(u);
 }	
 
@@ -379,31 +257,31 @@ maybe<T>::maybe(U&& u) : valid(false) {
 
 template <class T>
 template <class ...Args>
-maybe<T> maybe<T>::Just(Args&&... args) {
+maybe<T> maybe<T>::just(Args&&... args) {
 	maybe<T> m;
-	m.construct(std::forward<Args>(args)...);
+	m.construct(forward<Args>(args)...);
 	return m;
 }
 
 template <class T>
-maybe<T> maybe<T>::Just(const T& t) {
+maybe<T> maybe<T>::just(const T& t) {
 	return maybe<T>(t);
 }
 
 template <class T>
-maybe<T> maybe<T>::Just(T&& t) {
+maybe<T> maybe<T>::just(T&& t) {
 	return maybe<T>(t);
 }
 
 template <class T>
-maybe<T> maybe<T>::Nothing() {
+maybe<T> maybe<T>::nothing() {
 	return maybe<T>();
 }
 
 //allow if(maybe) checking...
 template <class T>
-maybe<T>::operator bool() { 
-	return valid; 
+maybe<T>::operator bool() const { 
+	return is_valid; 
 }
 
 //assignment operators
@@ -437,7 +315,7 @@ template <class T>
 template <class U>
 maybe<T>& maybe<T>::operator=(maybe<U>&& m) {
 	if (m) {
-		construct(std::move(m.get()));
+		construct(move(m.get()));
 	}
 	invalidate();
 	return *this;
@@ -445,10 +323,15 @@ maybe<T>& maybe<T>::operator=(maybe<U>&& m) {
 
 template <class T>
 void maybe<T>::invalidate() {
-	if (valid) {
+	if (is_valid) {
 		get().~T();
 	}
-	valid = false;
+	is_valid = false;
+}
+
+template <class T>
+bool maybe<T>::valid() const {
+	return is_valid;
 }
 
 //TODO: Throw an exception	
@@ -465,12 +348,12 @@ const T& maybe<T>::get() const {
 template <class T>
 template <class ...Args>
 void maybe<T>::construct(Args&&... args) {
-	if (valid) {
+	if (is_valid) {
 		//don't want to double-construct
 		invalidate();
 	}
-	new(reinterpret_cast<void*>(&memory)) T(std::forward<Args>(args)...);
-	valid = true;
+	new(reinterpret_cast<void*>(&memory)) T(forward<Args>(args)...);
+	is_valid = true;
 }
 
 template <class T>
@@ -483,57 +366,29 @@ maybe<T>::~maybe() {
 //pointer - if maybe is valid (i.e. Just T), the arg, else null 
 
 template <class T>
-template <class U, class ...Args>
-maybe_op<T, U, Args...> maybe<T>::operator[](maybe<U>(*func)(T, Args...)) const {
-	return maybe_op<T, U, Args...>(*this, valid ? func : nullptr);
+template <class Callable>
+maybe_op<T, Callable> maybe<T>::operator[](Callable c) {
+	return maybe_op<T, Callable>(*this, c);
 }
 
 template <class T>
-template <class U, class ...Args>
-maybe_op_constref<T, U, Args...> maybe<T>::operator[](maybe<U>(*func)(const T&, Args...)) const {
-	return maybe_op_constref<T, U, Args...>(*this, valid ? func : nullptr);
+template <class Callable>
+maybe_op_const<T, Callable> maybe<T>::operator[](Callable c) const {
+	return maybe_op_const<T, Callable>(*this, c);
 }
 
 template <class T>
-template <class U, class ...Args>
-maybe_op_ref<T, U, Args...> maybe<T>::operator[](maybe<U>(*func)(T&, Args...)) {
-	return maybe_op_ref<T, U, Args...>(*this, valid ? func : nullptr);
-}
-
-#ifndef NO_STDLIB
-
-template <class T>
-template <class U, class ...Args>
-maybe_op_fun<T, U, Args...> maybe<T>::operator[](std::function<maybe<U>(T, Args...)> func) const {
-	return maybe_op_fun<T, U, Args...>(*this, valid ? func : nullptr);
+template <class U, class Self>
+typename enable_if<is_class<Self>::value, maybe_op_mem<Self, U>>
+::type maybe<T>::operator[](U(Self::*func)()) {
+    return maybe_op_mem<Self, U>(*this, func);
 }
 
 template <class T>
-template <class U, class ...Args>
-maybe_op_fun_constref<T, U, Args...> maybe<T>::operator[](std::function<maybe<U>(const T&, Args...)> func) const {
-	return maybe_op_fun_constref<T, U, Args...>(*this, valid ? func : nullptr);
-}
-
-template <class T>
-template <class U, class ...Args>
-maybe_op_fun_ref<T, U, Args...> maybe<T>::operator[](std::function<maybe<U>(T&, Args...)> func) {
-	return maybe_op_fun_ref<T, U, Args...>(*this, valid ? func : nullptr);
-}
-
-#endif
-
-template <class T>
-template <class U, class ...Args, class Self>
-typename enable_if<is_class<Self>::value, maybe_op_mem<Self, U, Args...>>
-::type maybe<T>::operator[](maybe<U>(Self::*func)(Args...)) {
-    return maybe_op_mem<Self, U, Args...>(*this, valid ? func : nullptr);
-}
-
-template <class T>
-template <class U, class ...Args, class Self>
-typename enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U, Args...>>
-::type maybe<T>::operator[](maybe<U>(Self::*func)(Args...) const) const {
-    return maybe_op_mem_const<Self, U, Args...>(*this, valid ? func : nullptr);
+template <class U, class Self>
+typename enable_if<is_class<Self>::value, maybe_op_mem_const<Self, U>>
+::type maybe<T>::operator[](U(Self::*func)() const) const {
+    return maybe_op_mem_const<Self, U>(*this, func);
 }
 
 }
