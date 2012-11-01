@@ -79,6 +79,19 @@ private:
     pfunc_type f;
 };
 
+template <class Arg, class Callable>
+class maybe_call_wrapper {
+private:
+	Callable call;
+public:
+	typedef add_maybe<Arg>::type arg_type;
+	typedef typename add_maybe<unary_result<Callable, Arg>::type>::type result_type 
+	result_type operator()(arg_type arg) {
+		return arg ? call(arg) : result_type::nothing();
+	}
+	maybe_call_wrapper(Callable c) : call(c) {}
+};		
+
 //maybe<T>: The maybe monad class
 template <class T>
 class maybe {
@@ -90,8 +103,6 @@ public:
 	template <class U>
 	maybe(maybe<U>&&);
 	template <class U>
-	maybe(const U&);
-	template <class U>
 	maybe(U&&);
 	//static constructors
 	template <class ...Args>
@@ -102,8 +113,6 @@ public:
 	//allow if(maybe) checking...
 	operator bool() const;
 	//assignment operators
-	template <class U>
-	maybe<T>& operator=(const U&);
 	template <class U>
 	maybe<T>& operator=(U&&);
 	template <class U>
@@ -243,14 +252,10 @@ maybe<T>::maybe(maybe<U>&& m) : is_valid(false) {
 
 template <class T>
 template <class U>
-maybe<T>::maybe(const U& u) : is_valid(false) {
-	construct(u);
-}
-
-template <class T>
-template <class U>
 maybe<T>::maybe(U&& u) : is_valid(false) {
-	construct(u);
+	static_assert(is_convertible<U, T>::value,
+		"U is not implicitly convertible to T");
+	construct(forward(u));
 }	
 
 //static constructors:
@@ -270,7 +275,7 @@ maybe<T> maybe<T>::just(const T& t) {
 
 template <class T>
 maybe<T> maybe<T>::just(T&& t) {
-	return maybe<T>(t);
+	return maybe<T>(move(t));
 }
 
 template <class T>
@@ -287,15 +292,10 @@ maybe<T>::operator bool() const {
 //assignment operators
 template <class T>
 template <class U>
-maybe<T>& maybe<T>::operator=(const U& u) {
-	construct(u);
-	return *this;
-}
-
-template <class T>
-template <class U>
 maybe<T>& maybe<T>::operator=(U&& u) {
-	construct(u);
+	static_assert(is_convertible<U, T>::value,
+		"U is not implicitly convertible to T");
+	construct(forward(u));
 	return *this;
 }
 

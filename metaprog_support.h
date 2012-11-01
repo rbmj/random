@@ -1,6 +1,22 @@
 #ifndef METAPROG_SUPPORT_H_INC
 #define METAPROG_SUPPORT_H_INC
 
+namespace metaprog {
+
+template <class Callable, class Arg>
+struct unary_result {
+private:
+	static Arg(*arg)();
+	static Callable(*callable)();
+public:
+	typedef decltype((callable())(arg())) type;
+};
+
+}
+	
+
+//standard library stuff and some reimplementation below:
+
 #ifndef NO_STDLIB
 #include <type_traits>
 #include <utility>
@@ -17,6 +33,8 @@ namespace metaprog {
 	using std::is_class;
 	
 	using std::enable_if;
+	
+	using std::is_convertible;
 	
 }
 
@@ -58,7 +76,7 @@ namespace metaprog {
     
     template <class T>
 	struct is_class {
-	public:
+	private:
 		typedef long class_t;
 		typedef char not_class_t;
 		//need a double layer of templates in order to
@@ -67,8 +85,9 @@ namespace metaprog {
 		static class_t test(int U::*);
 		template <class U>
 		static not_class_t test(...);
+	public:
 		enum { 
-			value = (sizeof(is_class<T>::template test<T>(0)) == sizeof(class_t))
+			value = (sizeof(test<T>(0)) == sizeof(class_t))
 		};
 	};
 
@@ -84,6 +103,20 @@ namespace metaprog {
 	typename remove_reference<T>::type&& move(T&& t) {
 		return static_cast<typename remove_reference<T>::type&&>(t);
 	}
+	
+	template <class From, class To>
+	struct is_convertible {
+	private:
+		typedef char convertible_t;
+		typedef long inconvertible_t;
+		static From(*func)();
+		static convertible_t test(To);
+		static inconvertible_t test(...);
+	public:
+		enum {
+			value = (sizeof(test(func())) == sizeof(convertible_t))
+		};
+	};
 
 }
 
