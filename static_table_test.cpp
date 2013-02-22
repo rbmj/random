@@ -1,28 +1,48 @@
-#include "table.h"
+#include "static_table.h"
 #include <iostream>
 
-constexpr double pi = 3.14159;
-constexpr double conversion_factor = pi/180;
+constexpr unsigned num = 100;
 
 struct keymap {
-    constexpr double operator()(unsigned i) {
-        return 90-(i/2.0);
+    constexpr unsigned operator()(unsigned i) {
+        return i;
+    }
+};
+
+struct keymap_reverse {
+    static constexpr unsigned max = num - 1;
+    constexpr unsigned operator()(unsigned i) {
+        return max - i;
     }
 };
 
 struct valuemap {
-    constexpr double operator()(double key) {
-        return key*conversion_factor;
+    constexpr unsigned operator()(unsigned key) {
+        return key*key;
     }
 };
 
-constexpr static_table<180, keymap, valuemap> table;
+constexpr static_table<num, keymap, valuemap> table;
+constexpr static_table<num, keymap_reverse, valuemap> table_reverse;
 
 int main() {
-    for (unsigned i = 0; i < 180; ++i) {
-        std::cout << table.key_at_index(i) << "\t\t" << table.at_index(i) << '\n';
+    std::cout << "First table sorted: " << table.sorted;
+    std::cout << "\nSecond table sorted: " << table_reverse.sorted << '\n';
+    unsigned num;
+    while (std::cin >> num) {
+        try {
+            std::cout << "Entry in table 1: " << table[num] << '\n';
+        }
+        catch (std::exception& e) {
+            std::cout << "Not found\n";
+        }
+        try {
+            std::cout << "Entry in table 2: " << table[num] << '\n';
+        }
+        catch (std::exception& e) {
+            std::cout << "Not found\n";
+        }
     }
-    std::cout << "Sorted? " << table.sorted << std::endl;
     return 0;
 }
 

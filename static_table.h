@@ -71,7 +71,7 @@ private:
         index_of(typename T::key_type key, unsigned begin = 0, unsigned end = N)
         {
             // helper macro
-            #define ST_MIDPOINT(a, b) (b+((b - a)/2))
+            #define ST_MIDPOINT(a, b) (a+((b - a)/2))
             //partition at the ST_MIDPOINT(begin, end)
             return 
             //if this is a real range
