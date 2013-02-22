@@ -22,26 +22,30 @@ struct valuemap {
     }
 };
 
-constexpr static_table<num, keymap, valuemap> table;
-constexpr static_table<num, keymap_reverse, valuemap> table_reverse;
+constexpr static_map<num, keymap, valuemap> map;
+constexpr static_map<num, keymap_reverse, valuemap> map_reverse;
+constexpr static_table<num, valuemap> table;
 
 int main() {
-    std::cout << "First table sorted: " << table.sorted;
-    std::cout << "\nSecond table sorted: " << table_reverse.sorted << '\n';
+    std::cout << "First table sorted: " << map.sorted;
+    std::cout << "\nSecond table sorted: " << map_reverse.sorted;
+    std::cout << "\nThird table sorted: " << table.sorted << '\n';
     unsigned num;
     while (std::cin >> num) {
         try {
-            std::cout << "Entry in table 1: " << table[num] << '\n';
+            std::cout << "Entry in map 1: " << map[num] << '\n';
         }
         catch (std::exception& e) {
             std::cout << "Not found\n";
         }
         try {
-            std::cout << "Entry in table 2: " << table[num] << '\n';
+            std::cout << "Entry in map 2: " << map_reverse[num] << '\n';
         }
         catch (std::exception& e) {
             std::cout << "Not found\n";
         }
+        //no bounds checking
+        std::cout << "Entry in table: " << table[num] << '\n';
     }
     return 0;
 }

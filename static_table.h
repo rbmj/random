@@ -12,10 +12,19 @@ public:
 };
 
 template <unsigned N, class KeyGen, class Fn>
+class static_map;
+
+template <unsigned N, class Fn>
 class static_table;
 
+//this class holds components of static_table that are not dependent
+//on some or all of static_table's template parameters.
+//move into separate class to avoid excess code generation
 class static_table_impl {
+	//make static_map, static_table friends so it can use our private members
     template <unsigned N, class KeyGen, class Fn>
+    friend class static_map;
+    template <unsigned N, class Fn>
     friend class static_table;
 private:
     //for generating compile time sequences from 0 to N
@@ -44,58 +53,69 @@ private:
         static constexpr bool value = 
             (has_lessthan<T>::value || std::is_arithmetic<T>::value);
     };
+    
+    static constexpr unsigned midpoint(unsigned begin, unsigned end) {
+		return begin + ((end - begin) / 2);
+	}
 };
 
 template <unsigned N, class KeyGen, class Fn>
-class static_table {
+class static_map {
 public:
     //public typedefs
     typedef decltype((KeyGen{})(0U)) key_type;
     typedef decltype((Fn{})((KeyGen{})(0U))) value_type;
-    typedef static_table<N, KeyGen, Fn> this_type;
+    typedef static_map<N, KeyGen, Fn> this_type;
     static constexpr unsigned length = N;
 private:
 
-    //struct to hold all of the data.  Must be POD and aggregate constructable
+	//decrease verbosity
+	typedef static_table_impl impl;
+
+    //struct to hold all of the data.  Must be aggregate constructable
     template <bool Sorted>
-    struct table_t {
+    struct map_t {
         key_type keys[N];
         value_type values[N];
         
         static constexpr unsigned length = N;
         static constexpr unsigned sorted = Sorted;
-
+		
+		//for the next two functions:
+		
+		//the b template argument is needed to make the enable_if depend
+		//on a deduced parameter so SFINAE works
+		
+		//the T argument is to make it so the function signatures do not
+		//conflict and SFINAE will eliminate one version silently
+		
         //find the index of key IF sorted (binary search)
         template <bool b = Sorted, class T = this_type>
         constexpr typename std::enable_if<b, unsigned>::type
         index_of(typename T::key_type key, unsigned begin = 0, unsigned end = N)
         {
-            // helper macro
-            #define ST_MIDPOINT(a, b) (a+((b - a)/2))
-            //partition at the ST_MIDPOINT(begin, end)
+            //partition at the midpoint
             return 
             //if this is a real range
             (begin < end) ? 
                 //if the partition is the key
-                ((keys[ST_MIDPOINT(begin, end)] == key) ? 
+                ((keys[impl::midpoint(begin, end)] == key) ? 
                     //return the partition index    
-                    ST_MIDPOINT(begin, end) 
+                    impl::midpoint(begin, end) 
                 //else
                 : 
                     //if the partition is less than the key
-                    ((keys[ST_MIDPOINT(begin, end)] < key) ?
+                    ((keys[impl::midpoint(begin, end)] < key) ?
                         //then search range after the partition for the key  
-                        index_of(key, ST_MIDPOINT(begin, end)+1, end)
+                        index_of(key, impl::midpoint(begin, end)+1, end)
                     //else
                     :
                         //search the range before the partition for the key
-                        index_of(key, begin, ST_MIDPOINT(begin, end))
+                        index_of(key, begin, impl::midpoint(begin, end))
                     )
                 ) 
             //else, throw an error, as the key is not in the set
             : throw key_not_found_error{};
-            //no longer need helper macro
-            #undef ST_MIDPOINT
         }
         
         //find the index of key IF unsorted (linear search)
@@ -135,7 +155,7 @@ private:
     //if we can compare them
     template <class T, unsigned I1, unsigned I2, unsigned... Is>
     static constexpr typename
-    std::enable_if<static_table_impl::comparable<T>::value, bool>::type
+    std::enable_if<impl::comparable<T>::value, bool>::type
     keys_sorted(KeyGen keygen) {
         return (keygen(I2) < keygen(I1)) ?
             false :
@@ -146,7 +166,7 @@ private:
     //they do happen to be sorted.
     template <class T, unsigned I1, unsigned I2, unsigned... Is>
     static constexpr typename
-    std::enable_if<!static_table_impl::comparable<T>::value, bool>::type
+    std::enable_if<!impl::comparable<T>::value, bool>::type
     keys_sorted(KeyGen) {
         return false;
     }
@@ -159,25 +179,63 @@ private:
     
     //proxy overload of keys_sorted
     template <unsigned... Is>
-    static constexpr bool keys_sorted(static_table_impl::seq<Is...>) {
+    static constexpr bool keys_sorted(impl::seq<Is...>) {
         return keys_sorted<key_type, Is...>(KeyGen());
     }
-    
 
     //now the actual table instance
-    const table_t<
-        keys_sorted(static_table_impl::gen_seq<N>())
-    > table;
+    const map_t<keys_sorted(impl::gen_seq<N>())> map;
 
     //this does the heavy lifting of generating the table
     template <unsigned... Is>
-    constexpr static_table(
-        static_table_impl::seq<Is...>,
-        KeyGen keygen,
-        Fn func
-    ) :
-        //initialize table - generate all keys, and then all     
-        table{ { keygen(Is)... } , { func(keygen(Is))... } }
+    constexpr static_map(impl::seq<Is...>, KeyGen keygen, Fn func) :
+        //initialize table - generate all keys, and then all values   
+        map{ { keygen(Is)... } , { func(keygen(Is))... } }
+    {
+        //
+    }
+public:
+
+    //interface to generate a static table
+    constexpr static_map() : 
+        static_map(impl::gen_seq<N>(), KeyGen(), Fn()) {}
+
+    constexpr value_type operator[](key_type k) {
+        return map[k];
+    }
+
+    constexpr value_type at_index(unsigned i) {
+        return map.values[i];
+    }
+
+    constexpr key_type key_at_index(unsigned i) {
+        return map.keys[i];
+    }
+
+    static constexpr bool sorted = decltype(map)::sorted;
+};
+
+
+template <unsigned N, class Fn>
+class static_table {
+public:
+    //public typedefs
+    typedef unsigned key_type;
+    typedef decltype((Fn{})(0U)) value_type;
+    typedef static_table<N, Fn> this_type;
+    static constexpr unsigned length = N;
+private:
+
+	//decrease verbosity
+	typedef static_table_impl impl;
+    //the actual lookup table
+    const value_type table[N];
+
+    //this does the heavy lifting of generating the table
+    template <unsigned... Is>
+    constexpr static_table(impl::seq<Is...>, Fn func) :
+        //initialize table - generate values    
+        table{ func(Is)... }
     {
         //
     }
@@ -185,21 +243,13 @@ public:
 
     //interface to generate a static table
     constexpr static_table() : 
-        static_table(static_table_impl::gen_seq<N>(), KeyGen(), Fn()) {}
+        static_table(impl::gen_seq<N>(), Fn()) {}
 
     constexpr value_type operator[](key_type k) {
         return table[k];
     }
 
-    constexpr value_type at_index(unsigned i) {
-        return table.values[i];
-    }
-
-    constexpr key_type key_at_index(unsigned i) {
-        return table.keys[i];
-    }
-
-    static constexpr bool sorted = decltype(table)::sorted;
+    static constexpr bool sorted = true;
 };
 
 #endif
